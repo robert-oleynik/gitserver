@@ -1,0 +1,10 @@
+[package]
+name = "gitserver"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tf-bindgen = { git = "https://github.com/robert-oleynik/tf-bindgen.git", version = "0.1.0" }
+tf-kubernetes = { git = "https://github.com/robert-oleynik/tf-kubernetes.git", version = "0.1.0" }
