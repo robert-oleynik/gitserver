@@ -17,7 +17,7 @@ A collection of constructs for [tf-bindgen] used to deploy a Git server based on
 This project will expose a CLI application used to run and configure the deployment. Run the following command to get some help:
 
 ```sh
-cargo run -- help
+cargo run -- --help
 ```
 
 ## Roadmap
