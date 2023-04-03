@@ -15,7 +15,9 @@ use tf_kubernetes::kubernetes::Kubernetes;
 pub fn init() -> Rc<Stack> {
     let stack = Stack::new("gitserver");
 
-    Kubernetes::create(&stack).build();
+    Kubernetes::create(&stack)
+        .config_path("~/.kube/config")
+        .build();
 
     let namespace = tf_bindgen::codegen::resource! {
         &stack,
@@ -26,7 +28,7 @@ pub fn init() -> Rc<Stack> {
         }
     };
 
-    Postgres::create(&stack, "postgres")
+    Postgres::create(&stack, "gitea")
         .namespace(&namespace.metadata[0].name)
         .build();
 
@@ -42,6 +44,6 @@ fn main() -> std::io::Result<()> {
         Command::Apply => Terraform::apply(&stack)?,
         Command::Destroy => Terraform::destroy(&stack)?,
     };
-    let exit_code = command.spawn()?.wait()?.code().unwrap();
-    std::process::exit(exit_code)
+    let exit_code = command.spawn()?.wait()?.code().unwrap_or(0);
+    std::process::exit(exit_code);
 }

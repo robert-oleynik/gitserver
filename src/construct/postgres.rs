@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
 use derive_builder::Builder;
-use tf_bindgen::codegen::Construct;
+use tf_bindgen::codegen::{resource, Construct};
 use tf_bindgen::value::Value;
 use tf_bindgen::Scope;
+use tf_kubernetes::kubernetes::resource::{kubernetes_service, kubernetes_stateful_set};
 
 #[derive(Builder, Construct)]
 #[builder(build_fn(private, name = "build_"))]
@@ -29,10 +30,80 @@ impl Postgres {
 
 impl PostgresBuilder {
     pub fn build(&mut self) -> Rc<Postgres> {
-        let postgres = Rc::new(self.build_().expect("missing field"));
+        let this = Rc::new(self.build_().expect("missing field"));
 
-        // TODO: Setup
+        let name = &this.name;
+        let labels = crate::map! {
+            "app" = format!("postgres-{name}"),
+        };
 
-        postgres
+        resource! {
+            &this,
+            resource "kubernetes_service" "postgres" {
+                metadata {
+                    namespace = this.namespace.clone()
+                    name = format!("postgres-{name}")
+                }
+                spec {
+                    selector = &labels
+                    port {
+                        name = "db"
+                        port = 5432
+                    }
+                }
+            }
+        };
+
+        resource! {
+            &this,
+            resource "kubernetes_stateful_set" "postgres" {
+                metadata {
+                    namespace = this.namespace.clone()
+                    name = format!("postgres-{name}")
+                }
+                spec {
+                    replicas = "1"
+                    service_name = format!("postgres-{name}")
+                    selector {
+                        match_labels = &labels
+                    }
+                    template {
+                        metadata {
+                            labels = &labels
+                        }
+                        spec {
+                            container {
+                                name = "postgres"
+                                image = "postgres:15.2-alpine"
+                                port {
+                                    name = "db"
+                                    container_port = 5432
+                                }
+                                volume_mount {
+                                    name = "pgdata"
+                                    mount_path = "/var/lib/postgresql/data/pgdata"
+                                }
+                            }
+                        }
+                    }
+                    volume_claim_template {
+                        metadata {
+                            name = "pgdata"
+                        }
+                        spec {
+                            access_modes = ["ReadWriteOnce"]
+                            storage_class_name = "todo"
+                            resources {
+                                requests = crate::map!{
+                                    "storage" = "1Gi"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        this
     }
 }
