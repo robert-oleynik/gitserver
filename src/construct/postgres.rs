@@ -17,6 +17,8 @@ pub struct Postgres {
     __m_scope: Rc<dyn Scope>,
     #[builder(setter(into))]
     namespace: Value<Option<String>>,
+    #[builder(setter(into))]
+    volume_claim: Value<Option<String>>,
 }
 
 impl Postgres {
@@ -84,18 +86,10 @@ impl PostgresBuilder {
                                     mount_path = "/var/lib/postgresql/data/pgdata"
                                 }
                             }
-                        }
-                    }
-                    volume_claim_template {
-                        metadata {
-                            name = "pgdata"
-                        }
-                        spec {
-                            access_modes = ["ReadWriteOnce"]
-                            storage_class_name = "todo"
-                            resources {
-                                requests = crate::map!{
-                                    "storage" = "1Gi"
+                            volume {
+                                name = "pgdata"
+                                persistent_volume_claim {
+                                    claim_name = this.volume_claim.clone()
                                 }
                             }
                         }

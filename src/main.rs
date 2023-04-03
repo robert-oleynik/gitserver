@@ -1,16 +1,17 @@
 use std::rc::Rc;
 
 use clap::Parser;
-use construct::postgres::Postgres;
+use cli::{Cli, Command};
 use tf_bindgen::{cli::Terraform, Stack};
+use tf_kubernetes::kubernetes::resource::kubernetes_namespace;
+use tf_kubernetes::kubernetes::Kubernetes;
 
 mod cli;
 mod construct;
 mod helper;
 
-use cli::{Cli, Command};
-use tf_kubernetes::kubernetes::resource::kubernetes_namespace::*;
-use tf_kubernetes::kubernetes::Kubernetes;
+use construct::local_volume::LocalVolume;
+use construct::postgres::Postgres;
 
 pub fn init() -> Rc<Stack> {
     let stack = Stack::new("gitserver");
@@ -28,8 +29,21 @@ pub fn init() -> Rc<Stack> {
         }
     };
 
-    Postgres::create(&stack, "gitea")
+    let volume = LocalVolume::create(&stack, "gitserver")
+        .storage("10Gi")
+        .mount_path("/mnt")
+        .nodes(["minikube"])
+        .build();
+
+    let pgdata = volume
+        .claim("pgdata")
         .namespace(&namespace.metadata[0].name)
+        .storage("10Gi")
+        .build();
+
+    Postgres::create(&stack, "gitea-pg")
+        .namespace(&namespace.metadata[0].name)
+        .volume_claim(pgdata.claim().clone())
         .build();
 
     stack
