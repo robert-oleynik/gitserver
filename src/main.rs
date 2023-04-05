@@ -3,7 +3,7 @@ use std::rc::Rc;
 use clap::Parser;
 use cli::{Cli, Command};
 use tf_bindgen::{cli::Terraform, Stack};
-use tf_kubernetes::kubernetes::resource::kubernetes_namespace;
+use tf_kubernetes::kubernetes::resource::{kubernetes_namespace, kubernetes_storage_class};
 use tf_kubernetes::kubernetes::Kubernetes;
 
 mod cli;
@@ -29,8 +29,20 @@ pub fn init() -> Rc<Stack> {
         }
     };
 
+    let local_storage_class = tf_bindgen::codegen::resource! {
+        &stack,
+        resource "kubernetes_storage_class" "local_storage" {
+            metadata {
+                name = "local-storage"
+            }
+            storage_provisioner = "kubernetes.io/no-provisioner"
+            volume_binding_mode = "WaitForFirstConsumer"
+        }
+    };
+
     let volume = LocalVolume::create(&stack, "gitserver")
         .storage("10Gi")
+        .storage_class(&local_storage_class.metadata[0].name)
         .mount_path("/mnt")
         .node("minikube")
         .build();
@@ -39,6 +51,7 @@ pub fn init() -> Rc<Stack> {
         .claim("pgdata")
         .namespace(&namespace.metadata[0].name)
         .storage("10Gi")
+        .storage_class(&local_storage_class.metadata[0].name)
         .build();
 
     Postgres::create(&stack, "gitea-pg")

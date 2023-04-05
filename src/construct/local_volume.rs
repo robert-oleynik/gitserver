@@ -21,6 +21,7 @@ pub struct LocalVolumeBuilder {
     name: String,
     scope: Rc<dyn Scope>,
     storage: Option<Value<String>>,
+    storage_class: Option<Value<String>>,
     mount_path: Option<Value<String>>,
     node: Option<Value<String>>,
 }
@@ -35,6 +36,7 @@ impl LocalVolume {
             name: name.into(),
             scope: scope.clone(),
             storage: None,
+            storage_class: None,
             mount_path: None,
             node: None,
         }
@@ -55,6 +57,11 @@ impl LocalVolumeBuilder {
         self
     }
 
+    pub fn storage_class(&mut self, value: impl IntoValue<String>) -> &mut Self {
+        self.storage_class = Some(value.into_value());
+        self
+    }
+
     pub fn mount_path(&mut self, value: impl IntoValue<String>) -> &mut Self {
         self.mount_path = Some(value.into_value());
         self
@@ -72,6 +79,10 @@ impl LocalVolumeBuilder {
             volume_ref: RefCell::new(None),
         });
         let storage = self.storage.as_ref().expect("no storage specified");
+        let storage_class = self
+            .storage_class
+            .as_ref()
+            .expect("no storage class specified");
         let mount_path = self.mount_path.as_ref().expect("no mount_path specified");
         let name = &this.name;
         let node = self.node.as_ref().expect("no node sepcified");
@@ -90,7 +101,7 @@ impl LocalVolumeBuilder {
                         "ReadWriteOnce"
                     ]
                     persistent_volume_reclaim_policy = "Delete"
-                    // storage_class_name = "local-storage"
+                    storage_class_name = storage_class
                     persistent_volume_source {
                         local {
                             path = mount_path

@@ -21,6 +21,7 @@ pub struct LocalVolumeClaimBuilder {
     scope: Rc<dyn Scope>,
     namespace: Option<Value<String>>,
     storage: Option<Value<String>>,
+    storage_class: Option<Value<String>>,
     volume_name: Option<Value<String>>,
 }
 
@@ -34,6 +35,7 @@ impl LocalVolumeClaim {
             scope: scope.clone(),
             namespace: None,
             storage: None,
+            storage_class: None,
             volume_name: None,
         }
     }
@@ -47,6 +49,11 @@ impl LocalVolumeClaim {
 impl LocalVolumeClaimBuilder {
     pub fn storage(&mut self, value: impl IntoValue<String>) -> &mut Self {
         self.storage = Some(value.into_value());
+        self
+    }
+
+    pub fn storage_class(&mut self, value: impl IntoValue<String>) -> &mut Self {
+        self.storage_class = Some(value.into_value());
         self
     }
 
@@ -69,6 +76,10 @@ impl LocalVolumeClaimBuilder {
         let name = &this.name;
         let namespace = self.namespace.as_ref().expect("missing field 'namespace'");
         let storage = self.storage.as_ref().expect("missing field 'storage'");
+        let storage_class = self
+            .storage_class
+            .as_ref()
+            .expect("missing field 'storage_class'");
         let volume_name = self
             .volume_name
             .as_ref()
@@ -82,6 +93,7 @@ impl LocalVolumeClaimBuilder {
                 }
                 spec {
                     volume_name = volume_name
+                    storage_class_name = storage_class
                     access_modes = [
                         "ReadWriteOnce"
                     ]
