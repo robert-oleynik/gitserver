@@ -103,7 +103,7 @@ impl PostgresBuilder {
                                 }
                                 volume_mount {
                                     name = "pgdata"
-                                    mount_path = "/var/lib/postgresql/data/pgdata"
+                                    mount_path = "/var/lib/postgresql/data"
                                 }
                                 env {
                                     name = "POSTGRES_PASSWORD"
