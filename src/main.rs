@@ -32,7 +32,7 @@ pub fn init() -> Rc<Stack> {
     let volume = LocalVolume::create(&stack, "gitserver")
         .storage("10Gi")
         .mount_path("/mnt")
-        .nodes(["minikube"])
+        .node("minikube")
         .build();
 
     let pgdata = volume
@@ -43,7 +43,7 @@ pub fn init() -> Rc<Stack> {
 
     Postgres::create(&stack, "gitea-pg")
         .namespace(&namespace.metadata[0].name)
-        .volume_claim(pgdata.claim().clone())
+        .volume_claim(pgdata.claim().clone().unwrap())
         .build();
 
     stack
