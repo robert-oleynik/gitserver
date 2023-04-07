@@ -8,38 +8,26 @@ use tf_bindgen::Scope;
 use tf_kubernetes::kubernetes::resource::kubernetes_persistent_volume_claim;
 
 #[derive(Construct)]
+#[construct(builder)]
+#[allow(dead_code)]
 pub struct LocalVolumeClaim {
-    #[id]
+    #[construct(id)]
     name: String,
-    #[scope]
+    #[construct(scope)]
     scope: Rc<dyn Scope>,
+    #[construct(setter(into_value))]
+    namespace: Value<String>,
+    #[construct(setter(into_value))]
+    storage: Value<String>,
+    #[construct(setter(into_value))]
+    storage_class: Value<String>,
+    #[construct(setter(into_value))]
+    volume_name: Value<String>,
+    #[construct(skip)]
     claim_ref: RefCell<Option<Value<String>>>,
 }
 
-pub struct LocalVolumeClaimBuilder {
-    name: String,
-    scope: Rc<dyn Scope>,
-    namespace: Option<Value<String>>,
-    storage: Option<Value<String>>,
-    storage_class: Option<Value<String>>,
-    volume_name: Option<Value<String>>,
-}
-
 impl LocalVolumeClaim {
-    pub fn create<C: Scope + 'static>(
-        scope: &Rc<C>,
-        name: impl Into<String>,
-    ) -> LocalVolumeClaimBuilder {
-        LocalVolumeClaimBuilder {
-            name: name.into(),
-            scope: scope.clone(),
-            namespace: None,
-            storage: None,
-            storage_class: None,
-            volume_name: None,
-        }
-    }
-
     /// Returns a Terraform value reference to the name of the generated volume claim.
     pub fn claim(&self) -> Ref<'_, Option<Value<String>>> {
         self.claim_ref.borrow()
@@ -47,30 +35,20 @@ impl LocalVolumeClaim {
 }
 
 impl LocalVolumeClaimBuilder {
-    pub fn storage(&mut self, value: impl IntoValue<String>) -> &mut Self {
-        self.storage = Some(value.into_value());
-        self
-    }
-
-    pub fn storage_class(&mut self, value: impl IntoValue<String>) -> &mut Self {
-        self.storage_class = Some(value.into_value());
-        self
-    }
-
-    pub fn namespace(&mut self, value: impl IntoValue<String>) -> &mut Self {
-        self.namespace = Some(value.into_value());
-        self
-    }
-
-    pub fn volume_name(&mut self, value: impl IntoValue<String>) -> &mut Self {
-        self.volume_name = Some(value.into_value());
-        self
-    }
-
     pub fn build(&mut self) -> Rc<LocalVolumeClaim> {
         let this = Rc::new(LocalVolumeClaim {
             name: self.name.clone(),
             scope: self.scope.clone(),
+            namespace: self.namespace.clone().expect("missing field 'namespace'"),
+            storage: self.storage.clone().expect("missing field 'storage'"),
+            storage_class: self
+                .storage_class
+                .clone()
+                .expect("missing field 'storage_class'"),
+            volume_name: self
+                .volume_name
+                .clone()
+                .expect("missing field 'volume_name'"),
             claim_ref: RefCell::new(None),
         });
         let name = &this.name;

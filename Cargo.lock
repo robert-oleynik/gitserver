@@ -552,9 +552,10 @@ dependencies = [
 name = "tf-codegen"
 version = "0.1.0"
 dependencies = [
+ "darling",
  "heck",
  "quote",
- "syn 2.0.12",
+ "syn 1.0.109",
 ]
 
 [[package]]

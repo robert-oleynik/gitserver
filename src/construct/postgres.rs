@@ -1,60 +1,36 @@
 use std::rc::Rc;
 
 use tf_bindgen::codegen::{resource, Construct};
-use tf_bindgen::value::{IntoValue, Value};
+use tf_bindgen::value::Value;
 use tf_bindgen::Scope;
 use tf_kubernetes::kubernetes::resource::{kubernetes_service, kubernetes_stateful_set};
 
 #[derive(Construct)]
+#[construct(builder)]
 pub struct Postgres {
-    #[id]
+    #[construct(id)]
     name: String,
-    #[scope]
+    #[construct(scope)]
     scope: Rc<dyn Scope>,
-}
-
-pub struct PostgresBuilder {
-    name: String,
-    scope: Rc<dyn Scope>,
-    namespace: Option<Value<String>>,
-    volume_claim: Option<Value<String>>,
-}
-
-impl Postgres {
-    /// Creates a new builder used to build this construct.
-    pub fn create<C: Scope + 'static>(scope: &Rc<C>, name: impl Into<String>) -> PostgresBuilder {
-        PostgresBuilder {
-            name: name.into(),
-            scope: scope.clone(),
-            namespace: None,
-            volume_claim: None,
-        }
-    }
+    #[construct(setter(into_value))]
+    namespace: Value<String>,
+    #[construct(setter(into_value))]
+    volume_claim: Value<String>,
 }
 
 impl PostgresBuilder {
-    pub fn namespace(&mut self, value: impl IntoValue<String>) -> &mut Self {
-        self.namespace = Some(value.into_value());
-        self
-    }
-
-    pub fn volume_claim(&mut self, value: impl IntoValue<String>) -> &mut Self {
-        self.volume_claim = Some(value.into_value());
-        self
-    }
-
     pub fn build(&mut self) -> Rc<Postgres> {
         let this = Rc::new(Postgres {
             scope: self.scope.clone(),
             name: self.name.clone(),
+            namespace: self.namespace.clone().expect("missing field 'namespace'"),
+            volume_claim: self
+                .volume_claim
+                .clone()
+                .expect("missing field 'volume_claim'"),
         });
 
         let name = &this.name;
-        let namespace = self.namespace.as_ref().expect("missing field 'namespace'");
-        let volume_claim = self
-            .volume_claim
-            .as_ref()
-            .expect("missing field 'namespace'");
         let labels = crate::map! {
             "app" = format!("postgres-{name}"),
         };
@@ -63,7 +39,7 @@ impl PostgresBuilder {
             &this,
             resource "kubernetes_service" "postgres" {
                 metadata {
-                    namespace = namespace
+                    namespace = &this.namespace
                     name = format!("postgres-{name}")
                 }
                 spec {
@@ -80,7 +56,7 @@ impl PostgresBuilder {
             &this,
             resource "kubernetes_stateful_set" "postgres" {
                 metadata {
-                    namespace = namespace
+                    namespace = &this.namespace
                     name = format!("postgres-{name}")
                 }
                 spec {
@@ -113,7 +89,7 @@ impl PostgresBuilder {
                             volume {
                                 name = "pgdata"
                                 persistent_volume_claim {
-                                    claim_name = volume_claim
+                                    claim_name = &this.volume_claim
                                 }
                             }
                         }
