@@ -1,13 +1,13 @@
 use std::rc::Rc;
 
 use tf_bindgen::codegen::{resource, Construct};
-use tf_bindgen::value::Value;
-use tf_bindgen::Scope;
+use tf_bindgen::{Scope, Value};
 use tf_kubernetes::kubernetes::resource::{kubernetes_service, kubernetes_stateful_set};
 
 #[derive(Construct)]
 #[construct(builder)]
-pub struct Postgres {
+#[allow(dead_code)]
+pub struct Gitea {
     #[construct(id)]
     name: String,
     #[construct(scope)]
@@ -18,11 +18,11 @@ pub struct Postgres {
     volume_claim: Value<String>,
 }
 
-impl PostgresBuilder {
-    pub fn build(&mut self) -> Rc<Postgres> {
-        let this = Rc::new(Postgres {
-            scope: self.scope.clone(),
+impl GiteaBuilder {
+    pub fn build(&mut self) -> Rc<Gitea> {
+        let this = Rc::new(Gitea {
             name: self.name.clone(),
+            scope: self.scope.clone(),
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
             volume_claim: self
                 .volume_claim
@@ -32,14 +32,14 @@ impl PostgresBuilder {
 
         let name = &this.name;
         let labels = crate::map! {
-            "app" = format!("postgres-{name}"),
+            "app" = format!("gitea-{name}")
         };
 
         let service = resource! {
-            &this, resource "kubernetes_service" "postgres" {
+            &this, resource "kubernetes_service" "gitea" {
                 metadata {
                     namespace = &this.namespace
-                    name = format!("postgres-{name}")
+                    name = format!("gitea-{name}")
                 }
                 spec {
                     selector = &labels
@@ -52,10 +52,10 @@ impl PostgresBuilder {
         };
 
         resource! {
-            &this, resource "kubernetes_stateful_set" "postgres" {
+            &this, resource "kubernetes_stateful_set" "gitea" {
                 metadata {
                     namespace = &this.namespace
-                    name = format!("postgres-{name}")
+                    name = format!("gitea-{name}")
                 }
                 spec {
                     replicas = "1"
@@ -69,23 +69,47 @@ impl PostgresBuilder {
                         }
                         spec {
                             container {
-                                name = "postgres"
-                                image = "postgres:15.2-alpine"
+                                name = "gitea"
+                                image = "gitea/gitea:1.19.0"
                                 port {
-                                    name = "db"
-                                    container_port = 5432
+                                    name = "http"
+                                    container_port = 3000
+                                }
+                                port {
+                                    name = "ssh"
+                                    container_port = 22
                                 }
                                 volume_mount {
-                                    name = "pgdata"
-                                    mount_path = "/var/lib/postgresql/data"
+                                    name = "giteadata"
+                                    mount_path = "/gitea"
                                 }
                                 env {
-                                    name = "POSTGRES_PASSWORD"
-                                    value = "example"
+                                    name = "USER_UID"
+                                    value = "1000"
+                                }
+                                env {
+                                    name = "USER_GID"
+                                    value = "1000"
+                                }
+                                env {
+                                    name = "GITEA__database__DB_TYPE"
+                                    value = "postgres"
+                                }
+                                env {
+                                    name = "GITEA__database__NAME"
+                                    value = "gitea"
+                                }
+                                env {
+                                    name = "GITEA__database__USER"
+                                    value = "gitea"
+                                }
+                                env {
+                                    name = "GITEA__database__PASSWORD"
+                                    value = "gitea"
                                 }
                             }
                             volume {
-                                name = "pgdata"
+                                name = "giteadata"
                                 persistent_volume_claim {
                                     claim_name = &this.volume_claim
                                 }

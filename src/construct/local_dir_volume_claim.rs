@@ -10,7 +10,7 @@ use tf_kubernetes::kubernetes::resource::kubernetes_persistent_volume_claim;
 #[derive(Construct)]
 #[construct(builder)]
 #[allow(dead_code)]
-pub struct LocalVolumeClaim {
+pub struct LocalDirVolumeClaim {
     #[construct(id)]
     name: String,
     #[construct(scope)]
@@ -27,16 +27,16 @@ pub struct LocalVolumeClaim {
     claim_ref: RefCell<Option<Value<String>>>,
 }
 
-impl LocalVolumeClaim {
+impl LocalDirVolumeClaim {
     /// Returns a Terraform value reference to the name of the generated volume claim.
     pub fn claim(&self) -> Ref<'_, Option<Value<String>>> {
         self.claim_ref.borrow()
     }
 }
 
-impl LocalVolumeClaimBuilder {
-    pub fn build(&mut self) -> Rc<LocalVolumeClaim> {
-        let this = Rc::new(LocalVolumeClaim {
+impl LocalDirVolumeClaimBuilder {
+    pub fn build(&mut self) -> Rc<LocalDirVolumeClaim> {
+        let this = Rc::new(LocalDirVolumeClaim {
             name: self.name.clone(),
             scope: self.scope.clone(),
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
@@ -52,32 +52,22 @@ impl LocalVolumeClaimBuilder {
             claim_ref: RefCell::new(None),
         });
         let name = &this.name;
-        let namespace = self.namespace.as_ref().expect("missing field 'namespace'");
-        let storage = self.storage.as_ref().expect("missing field 'storage'");
-        let storage_class = self
-            .storage_class
-            .as_ref()
-            .expect("missing field 'storage_class'");
-        let volume_name = self
-            .volume_name
-            .as_ref()
-            .expect("missing field 'volume_name'");
 
         let claim = resource! {
             &this, resource "kubernetes_persistent_volume_claim" "claim" {
                 metadata {
-                    namespace = namespace
+                    namespace = &this.namespace
                     name = format!("{name}-pvc")
                 }
                 spec {
-                    volume_name = volume_name
-                    storage_class_name = storage_class
+                    volume_name = &this.volume_name
+                    storage_class_name = &this.storage_class
                     access_modes = [
                         "ReadWriteOnce"
                     ]
                     resources {
                         requests = crate::map!{
-                            "storage" = storage
+                            "storage" = &this.storage
                         }
                     }
                 }

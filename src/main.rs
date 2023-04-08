@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use clap::Parser;
 use cli::{Cli, Command};
+use construct::gitea::Gitea;
 use tf_bindgen::{cli::Terraform, Stack};
 use tf_kubernetes::kubernetes::resource::{kubernetes_namespace, kubernetes_storage_class};
 use tf_kubernetes::kubernetes::Kubernetes;
@@ -10,7 +11,7 @@ mod cli;
 mod construct;
 mod helper;
 
-use construct::local_volume::LocalVolume;
+use construct::local_dir_volume::LocalDirVolume;
 use construct::postgres::Postgres;
 
 pub fn init() -> Rc<Stack> {
@@ -21,8 +22,7 @@ pub fn init() -> Rc<Stack> {
         .build();
 
     let namespace = tf_bindgen::codegen::resource! {
-        &stack,
-        resource "kubernetes_namespace" "gitserver" {
+        &stack, resource "kubernetes_namespace" "gitserver" {
             metadata {
                 name = "gitserver"
             }
@@ -30,8 +30,7 @@ pub fn init() -> Rc<Stack> {
     };
 
     let local_storage_class = tf_bindgen::codegen::resource! {
-        &stack,
-        resource "kubernetes_storage_class" "local_storage" {
+        &stack, resource "kubernetes_storage_class" "local_storage" {
             metadata {
                 name = "local-storage"
             }
@@ -40,23 +39,35 @@ pub fn init() -> Rc<Stack> {
         }
     };
 
-    let volume = LocalVolume::create(&stack, "gitserver")
+    let pgdata_volume = LocalDirVolume::create(&stack, "gitserver-pgdata")
         .storage("10Gi")
         .storage_class(&local_storage_class.metadata[0].name)
-        .mount_path("/mnt")
+        .mount_path("/mnt/data1")
         .node("minikube")
         .build();
-
-    let pgdata = volume
+    let pgdata = pgdata_volume
         .claim("pgdata")
         .namespace(&namespace.metadata[0].name)
-        .storage("10Gi")
-        .storage_class(&local_storage_class.metadata[0].name)
         .build();
 
-    Postgres::create(&stack, "gitea-pg")
+    let giteadata_volume = LocalDirVolume::create(&stack, "gitserver-giteadata")
+        .storage("10Gi")
+        .storage_class(&local_storage_class.metadata[0].name)
+        .mount_path("/mnt/data2")
+        .node("minikube")
+        .build();
+    let giteadata = giteadata_volume
+        .claim("giteadata")
+        .namespace(&namespace.metadata[0].name)
+        .build();
+
+    Postgres::create(&stack, "gitserver")
         .namespace(&namespace.metadata[0].name)
         .volume_claim(pgdata.claim().clone().unwrap())
+        .build();
+    Gitea::create(&stack, "gitserver")
+        .namespace(&namespace.metadata[0].name)
+        .volume_claim(giteadata.claim().clone().unwrap())
         .build();
 
     stack

@@ -6,12 +6,12 @@ use tf_bindgen::value::{IntoValue, Value};
 use tf_bindgen::Scope;
 use tf_kubernetes::kubernetes::resource::kubernetes_persistent_volume;
 
-use super::local_volume_claim::{LocalVolumeClaim, LocalVolumeClaimBuilder};
+use super::local_dir_volume_claim::{LocalDirVolumeClaim, LocalDirVolumeClaimBuilder};
 
 #[derive(Construct)]
 #[construct(builder)]
 #[allow(dead_code)]
-pub struct LocalVolume {
+pub struct LocalDirVolume {
     #[construct(id)]
     name: String,
     #[construct(scope)]
@@ -28,19 +28,22 @@ pub struct LocalVolume {
     volume_ref: RefCell<Option<Value<String>>>,
 }
 
-impl LocalVolume {
+impl LocalDirVolume {
     /// Returns a perconfigured claim builder to claim this local resource. Will use `name` as name
     /// of the claim.
-    pub fn claim(self: &Rc<Self>, name: impl Into<String>) -> LocalVolumeClaimBuilder {
-        let mut builder = LocalVolumeClaim::create(self, name);
-        builder.volume_name(self.volume_ref.borrow().clone().unwrap());
+    pub fn claim(self: &Rc<Self>, name: impl Into<String>) -> LocalDirVolumeClaimBuilder {
+        let mut builder = LocalDirVolumeClaim::create(self, name);
+        builder
+            .volume_name(self.volume_ref.borrow().clone().unwrap())
+            .storage(&self.storage)
+            .storage_class(&self.storage_class);
         builder
     }
 }
 
-impl LocalVolumeBuilder {
-    pub fn build(&mut self) -> Rc<LocalVolume> {
-        let this = Rc::new(LocalVolume {
+impl LocalDirVolumeBuilder {
+    pub fn build(&mut self) -> Rc<LocalDirVolume> {
+        let this = Rc::new(LocalDirVolume {
             name: self.name.clone(),
             scope: self.scope.clone(),
             storage: self.storage.clone().expect("missing field 'council'"),
@@ -52,14 +55,7 @@ impl LocalVolumeBuilder {
             node: self.node.clone().expect("missing field 'node'"),
             volume_ref: RefCell::new(None),
         });
-        let storage = self.storage.as_ref().expect("no storage specified");
-        let storage_class = self
-            .storage_class
-            .as_ref()
-            .expect("no storage class specified");
-        let mount_path = self.mount_path.as_ref().expect("no mount_path specified");
         let name = &this.name;
-        let node = self.node.as_ref().expect("no node sepcified");
 
         let volume = resource! {
             &this, resource "kubernetes_persistent_volume" "pv-local" {
@@ -69,16 +65,17 @@ impl LocalVolumeBuilder {
                 spec {
                     volume_mode = "Filesystem"
                     capacity = crate::map!{
-                        "storage" = storage
+                        "storage" = &this.storage
                     }
                     access_modes = [
                         "ReadWriteOnce"
                     ]
                     persistent_volume_reclaim_policy = "Delete"
-                    storage_class_name = storage_class
+                    storage_class_name = &this.storage_class
                     persistent_volume_source {
-                        local {
-                            path = mount_path
+                        host_path {
+                            path = &this.mount_path
+                            r#type = "DirectoryOrCreate"
                         }
                     }
                     node_affinity {
@@ -87,7 +84,7 @@ impl LocalVolumeBuilder {
                                 match_expressions {
                                     key = "kubernetes.io/hostname"
                                     operator = "In"
-                                    values = [node]
+                                    values = [&this.node]
                                 }
                             }
                         }
