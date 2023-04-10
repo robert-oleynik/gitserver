@@ -1,4 +1,7 @@
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 use clap::Parser;
 use cli::{Cli, Command};
@@ -82,6 +85,27 @@ fn main() -> std::io::Result<()> {
         Command::Apply => Terraform::apply(&stack)?,
         Command::Destroy => Terraform::destroy(&stack)?,
     };
-    let exit_code = command.spawn()?.wait()?.code().unwrap_or(0);
-    std::process::exit(exit_code);
+    #[cfg(unix)]
+    {
+        let terminate = Arc::new(AtomicBool::new(false));
+        signal_hook::consts::TERM_SIGNALS
+            .iter()
+            .map(|signal| (signal, Arc::clone(&terminate)))
+            .for_each(|(signal, hook)| {
+                signal_hook::flag::register(*signal, hook).expect("register signal");
+            });
+        let mut child = command.spawn()?;
+        while !terminate.load(Ordering::Relaxed) {
+            if let Some(status) = child.try_wait()? {
+                std::process::exit(status.code().unwrap_or(0));
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        let _ = child.kill();
+    }
+    #[cfg(not(unix))]
+    {
+        todo!()
+    }
+    Ok(())
 }
