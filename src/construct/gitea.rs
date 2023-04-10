@@ -4,6 +4,8 @@ use tf_bindgen::codegen::{resource, Construct};
 use tf_bindgen::{Scope, Value};
 use tf_kubernetes::kubernetes::resource::{kubernetes_service, kubernetes_stateful_set};
 
+use super::ingress::IngressServiceConfig;
+
 #[derive(Construct)]
 #[construct(builder)]
 #[allow(dead_code)]
@@ -16,6 +18,15 @@ pub struct Gitea {
     namespace: Value<String>,
     #[construct(setter(into_value))]
     volume_claim: Value<String>,
+}
+
+impl Gitea {
+    pub fn ingress(&self) -> IngressServiceConfig {
+        IngressServiceConfig {
+            service_name: format!("{}-service", self.name),
+            service_port: 3000,
+        }
+    }
 }
 
 impl GiteaBuilder {
@@ -39,13 +50,13 @@ impl GiteaBuilder {
             &this, resource "kubernetes_service" "gitea" {
                 metadata {
                     namespace = &this.namespace
-                    name = format!("gitea-{name}")
+                    name = format!("{name}-service")
                 }
                 spec {
                     selector = &labels
                     port {
-                        name = "db"
-                        port = 5432
+                        name = "web"
+                        port = 3000
                     }
                 }
             }
@@ -55,7 +66,7 @@ impl GiteaBuilder {
             &this, resource "kubernetes_stateful_set" "gitea" {
                 metadata {
                     namespace = &this.namespace
-                    name = format!("gitea-{name}")
+                    name = name
                 }
                 spec {
                     replicas = "1"
@@ -106,6 +117,12 @@ impl GiteaBuilder {
                                 env {
                                     name = "GITEA__database__PASSWORD"
                                     value = "gitea"
+                                }
+                                liveness_probe {
+                                    http_get {
+                                        path = "/api/healthz"
+                                        port = "http"
+                                    }
                                 }
                             }
                             volume {
