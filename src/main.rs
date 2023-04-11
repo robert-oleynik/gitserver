@@ -47,7 +47,7 @@ pub fn init() -> Rc<Stack> {
     let pgdata_volume = LocalDirVolume::create(&stack, "gitserver-pgdata")
         .storage("10Gi")
         .storage_class(&local_storage_class.metadata[0].name)
-        .mount_path("/mnt/data1")
+        .mount_path("/mnt/gitea-pgdata")
         .node("minikube")
         .build();
     let pgdata = pgdata_volume.claim("pgdata").namespace(namespace).build();
@@ -55,7 +55,7 @@ pub fn init() -> Rc<Stack> {
     let giteadata_volume = LocalDirVolume::create(&stack, "gitserver-giteadata")
         .storage("10Gi")
         .storage_class(&local_storage_class.metadata[0].name)
-        .mount_path("/mnt/data2")
+        .mount_path("/mnt/gitea-data")
         .node("minikube")
         .build();
     let giteadata = giteadata_volume
@@ -66,12 +66,18 @@ pub fn init() -> Rc<Stack> {
     Postgres::create(&stack, "giteadb")
         .namespace(namespace)
         .volume_claim(pgdata.claim().clone().unwrap())
+        .db_name("gitea")
+        .user("gitea")
+        .password("gitea")
         .build();
     let gitea = Gitea::create(&stack, "gitea")
         .namespace(namespace)
         .domain("192.168.49.2")
-        .path("/git")
-        .postgres_host("postgres-giteadb.gitserver:5432")
+        .path("/git/")
+        .db_host("postgres-giteadb.gitserver:5432")
+        .db_name("gitea")
+        .db_user("gitea")
+        .db_password("gitea")
         .volume_claim(giteadata.claim().clone().unwrap())
         .build();
     Ingress::create(&stack, "gitserver")

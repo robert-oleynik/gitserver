@@ -24,7 +24,13 @@ pub struct Gitea {
     #[construct(setter(into_value))]
     domain: Value<String>,
     #[construct(setter(into_value))]
-    postgres_host: Value<String>,
+    db_host: Value<String>,
+    #[construct(setter(into_value))]
+    db_name: Value<String>,
+    #[construct(setter(into_value))]
+    db_user: Value<String>,
+    #[construct(setter(into_value))]
+    db_password: Value<String>,
     #[construct(setter(into_value))]
     volume_claim: Value<String>,
 }
@@ -47,10 +53,13 @@ impl GiteaBuilder {
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
             path: self.path.clone().unwrap_or("/".into()),
             domain: self.domain.clone().unwrap_or("localhost".into_value()),
-            postgres_host: self
-                .postgres_host
+            db_host: self.db_host.clone().unwrap_or("localhost".into_value()),
+            db_name: self.db_name.clone().expect("missing field 'db_name'"),
+            db_user: self.db_user.clone().expect("missing field 'db_user'"),
+            db_password: self
+                .db_password
                 .clone()
-                .unwrap_or("localhost".into_value()),
+                .expect("missing field 'db_password'"),
             volume_claim: self
                 .volume_claim
                 .clone()
@@ -90,10 +99,10 @@ impl GiteaBuilder {
                     "GITEA_WORK_DIR" = "/gitea",
                     "GITEA_CUSTOM" = "/gitea/custom",
                     "GITEA__database__DB_TYPE" = "postgres",
-                    "GITEA__database__HOST" = &this.postgres_host,
-                    "GITEA__database__NAME" = "gitea",
-                    "GITEA__database__USER" = "gitea",
-                    "GITEA__database__PASSWORD" = "gitea",
+                    "GITEA__database__HOST" = &this.db_host,
+                    "GITEA__database__NAME" = &this.db_name,
+                    "GITEA__database__USER" = &this.db_user,
+                    "GITEA__database__PASSWD" = &this.db_password,
                     "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s:%(HTTP_PORT)s{}", this.path),
                     "GITEA__server__DOMAIN" = &this.domain
                 }

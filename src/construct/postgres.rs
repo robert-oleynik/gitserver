@@ -15,6 +15,12 @@ pub struct Postgres {
     #[construct(setter(into_value))]
     namespace: Value<String>,
     #[construct(setter(into_value))]
+    db_name: Value<String>,
+    #[construct(setter(into_value))]
+    user: Value<String>,
+    #[construct(setter(into_value))]
+    password: Value<String>,
+    #[construct(setter(into_value))]
     volume_claim: Value<String>,
 }
 
@@ -24,6 +30,9 @@ impl PostgresBuilder {
             scope: self.scope.clone(),
             name: self.name.clone(),
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
+            db_name: self.db_name.clone().expect("missing field 'db_name'"),
+            user: self.user.clone().expect("missing field 'user'"),
+            password: self.password.clone().expect("missing field 'password'"),
             volume_claim: self
                 .volume_claim
                 .clone()
@@ -80,8 +89,16 @@ impl PostgresBuilder {
                                     mount_path = "/var/lib/postgresql/data"
                                 }
                                 env {
+                                    name = "POSTGRES_DB"
+                                    value = &this.db_name
+                                }
+                                env {
+                                    name = "POSTGRES_USER"
+                                    value = &this.user
+                                }
+                                env {
                                     name = "POSTGRES_PASSWORD"
-                                    value = "example"
+                                    value = &this.password
                                 }
                             }
                             volume {
