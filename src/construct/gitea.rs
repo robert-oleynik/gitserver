@@ -1,8 +1,11 @@
 use std::rc::Rc;
 
 use tf_bindgen::codegen::{resource, Construct};
+use tf_bindgen::value::IntoValue;
 use tf_bindgen::{Scope, Value};
-use tf_kubernetes::kubernetes::resource::{kubernetes_service, kubernetes_stateful_set};
+use tf_kubernetes::kubernetes::resource::{
+    kubernetes_config_map, kubernetes_service, kubernetes_stateful_set,
+};
 
 use super::ingress::IngressServiceConfig;
 
@@ -16,6 +19,10 @@ pub struct Gitea {
     scope: Rc<dyn Scope>,
     #[construct(setter(into_value))]
     namespace: Value<String>,
+    #[construct(setter(into))]
+    path: String,
+    #[construct(setter(into))]
+    domain: Value<String>,
     #[construct(setter(into_value))]
     volume_claim: Value<String>,
 }
@@ -23,6 +30,7 @@ pub struct Gitea {
 impl Gitea {
     pub fn ingress(&self) -> IngressServiceConfig {
         IngressServiceConfig {
+            path: self.path.clone(),
             service_name: format!("{}-service", self.name),
             service_port: 3000,
         }
@@ -35,6 +43,8 @@ impl GiteaBuilder {
             name: self.name.clone(),
             scope: self.scope.clone(),
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
+            path: self.path.clone().unwrap_or("/".into()),
+            domain: self.domain.clone().unwrap_or("localhost".into_value()),
             volume_claim: self
                 .volume_claim
                 .clone()
@@ -58,6 +68,25 @@ impl GiteaBuilder {
                         name = "web"
                         port = 3000
                     }
+                }
+            }
+        };
+
+        let config = resource! {
+            &this, resource "kubernetes_config_map" "gitea-config" {
+                metadata {
+                    namespace = &this.namespace
+                    name = name
+                }
+                data = crate::map!{
+                    "USER_GID" = "1000",
+                    "USER_UID" = "1000",
+                    "GITEA__database__DB_TYPE" = "postgres",
+                    "GITEA__database__NAME" = "gitea",
+                    "GITEA__database__USER" = "gitea",
+                    "GITEA__database__PASSWORD" = "gitea",
+                    "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s:%(HTTP_PORT)s{}", this.path),
+                    "GITEA__server__DOMAIN" = &this.domain
                 }
             }
         };
@@ -94,29 +123,10 @@ impl GiteaBuilder {
                                     name = "giteadata"
                                     mount_path = "/gitea"
                                 }
-                                env {
-                                    name = "USER_UID"
-                                    value = "1000"
-                                }
-                                env {
-                                    name = "USER_GID"
-                                    value = "1000"
-                                }
-                                env {
-                                    name = "GITEA__database__DB_TYPE"
-                                    value = "postgres"
-                                }
-                                env {
-                                    name = "GITEA__database__NAME"
-                                    value = "gitea"
-                                }
-                                env {
-                                    name = "GITEA__database__USER"
-                                    value = "gitea"
-                                }
-                                env {
-                                    name = "GITEA__database__PASSWORD"
-                                    value = "gitea"
+                                env_from {
+                                    config_map_ref {
+                                        name = &config.metadata[0].name
+                                    }
                                 }
                                 liveness_probe {
                                     http_get {

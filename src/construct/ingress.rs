@@ -6,6 +6,7 @@ use tf_kubernetes::kubernetes::resource::kubernetes_ingress_v1::{self, *};
 
 #[derive(Clone)]
 pub struct IngressServiceConfig {
+    pub path: String,
     pub service_name: String,
     pub service_port: i64,
 }
@@ -21,7 +22,7 @@ pub struct Ingress {
     #[construct(setter(into_value))]
     namespace: Value<String>,
     #[construct(setter(into))]
-    services: Vec<(&'static str, IngressServiceConfig)>,
+    services: Vec<IngressServiceConfig>,
 }
 
 impl IngressBuilder {
@@ -37,7 +38,7 @@ impl IngressBuilder {
         let paths: Vec<_> = this
             .services
             .iter()
-            .map(|(route, config)| {
+            .map(|config| {
                 let port = KubernetesIngressV1SpecRuleHttpPathBackendServicePort::builder()
                     .number(config.service_port)
                     .build();
@@ -50,7 +51,7 @@ impl IngressBuilder {
                     .build();
                 KubernetesIngressV1SpecRuleHttpPath::builder()
                     .path_type("Prefix")
-                    .path(*route)
+                    .path(&config.path)
                     .backend(backend)
                     .build()
             })

@@ -69,11 +69,12 @@ pub fn init() -> Rc<Stack> {
         .build();
     let gitea = Gitea::create(&stack, "gitea")
         .namespace(namespace)
+        .path("/git")
         .volume_claim(giteadata.claim().clone().unwrap())
         .build();
     Ingress::create(&stack, "gitserver")
         .namespace(namespace)
-        .services(vec![("/git", gitea.ingress())])
+        .services(vec![gitea.ingress()])
         .build();
 
     stack
