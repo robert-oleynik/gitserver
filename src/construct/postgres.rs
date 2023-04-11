@@ -60,6 +60,9 @@ impl PostgresBuilder {
             }
         };
 
+        let user_str: &str = &this.user.get();
+        let db_name_str: &str = &this.db_name.get();
+
         resource! {
             &this, resource "kubernetes_stateful_set" "postgres" {
                 metadata {
@@ -99,6 +102,16 @@ impl PostgresBuilder {
                                 env {
                                     name = "POSTGRES_PASSWORD"
                                     value = &this.password
+                                }
+                                liveness_probe {
+                                    exec {
+                                        command = ["psql", "-w", "-U", user_str, "-d", db_name_str, "-c", "SELECT 1"]
+                                    }
+                                }
+                                readiness_probe {
+                                    exec {
+                                        command = ["psql", "-w", "-U", user_str, "-d", db_name_str, "-c", "SELECT 1"]
+                                    }
                                 }
                             }
                             volume {

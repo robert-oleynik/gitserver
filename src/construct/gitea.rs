@@ -198,6 +198,12 @@ impl GiteaBuilder {
                                         name = &config.metadata[0].name
                                     }
                                 }
+                                readiness_probe {
+                                    http_get {
+                                        path = "/api/healthz"
+                                        port = "http"
+                                    }
+                                }
                                 liveness_probe {
                                     http_get {
                                         path = "/api/healthz"
