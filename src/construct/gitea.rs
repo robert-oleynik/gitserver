@@ -4,7 +4,7 @@ use tf_bindgen::codegen::{resource, Construct};
 use tf_bindgen::value::IntoValue;
 use tf_bindgen::{Scope, Value};
 use tf_kubernetes::kubernetes::resource::{
-    kubernetes_config_map, kubernetes_service, kubernetes_stateful_set,
+    kubernetes_config_map, kubernetes_secret, kubernetes_service, kubernetes_stateful_set,
 };
 
 use super::ingress::IngressServiceConfig;
@@ -21,8 +21,10 @@ pub struct Gitea {
     namespace: Value<String>,
     #[construct(setter(into))]
     path: String,
-    #[construct(setter(into))]
+    #[construct(setter(into_value))]
     domain: Value<String>,
+    #[construct(setter(into_value))]
+    postgres_host: Value<String>,
     #[construct(setter(into_value))]
     volume_claim: Value<String>,
 }
@@ -45,6 +47,10 @@ impl GiteaBuilder {
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
             path: self.path.clone().unwrap_or("/".into()),
             domain: self.domain.clone().unwrap_or("localhost".into_value()),
+            postgres_host: self
+                .postgres_host
+                .clone()
+                .unwrap_or("localhost".into_value()),
             volume_claim: self
                 .volume_claim
                 .clone()
@@ -81,12 +87,28 @@ impl GiteaBuilder {
                 data = crate::map!{
                     "USER_GID" = "1000",
                     "USER_UID" = "1000",
+                    "GITEA_WORK_DIR" = "/gitea",
+                    "GITEA_CUSTOM" = "/gitea/custom",
                     "GITEA__database__DB_TYPE" = "postgres",
+                    "GITEA__database__HOST" = &this.postgres_host,
                     "GITEA__database__NAME" = "gitea",
                     "GITEA__database__USER" = "gitea",
                     "GITEA__database__PASSWORD" = "gitea",
                     "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s:%(HTTP_PORT)s{}", this.path),
                     "GITEA__server__DOMAIN" = &this.domain
+                }
+            }
+        };
+        let init_config = resource! {
+            &this, resource "kubernetes_secret" "gitea-init-config" {
+                r#type = "Opaque"
+                metadata {
+                    namespace = &this.namespace
+                    name = format!("{name}-init")
+                }
+                data = crate::map! {
+                    "init.sh" = INIT_SCRIPT,
+                    "migrate.sh" = MIGRATION_SCRIPT
                 }
             }
         };
@@ -108,9 +130,48 @@ impl GiteaBuilder {
                             labels = &labels
                         }
                         spec {
+                            init_container {
+                                name = "init"
+                                image = "gitea/gitea:1.19.0-rootless"
+                                command = ["bash", "/usr/sbin/init.sh"]
+                                volume_mount {
+                                    name = "giteadata"
+                                    mount_path = "/gitea"
+                                }
+                                env_from {
+                                    config_map_ref {
+                                        name = &config.metadata[0].name
+                                    }
+                                }
+                                volume_mount {
+                                    name = "init-scripts"
+                                    mount_path = "/usr/sbin"
+                                }
+                                security_context {
+                                    run_as_user = "0"
+                                }
+                            }
+                            init_container {
+                                name = "init-gitea"
+                                image = "gitea/gitea:1.19.0-rootless"
+                                command = ["bash", "/usr/sbin/migrate.sh"]
+                                volume_mount {
+                                    name = "giteadata"
+                                    mount_path = "/gitea"
+                                }
+                                env_from {
+                                    config_map_ref {
+                                        name = &config.metadata[0].name
+                                    }
+                                }
+                                volume_mount {
+                                    name = "init-scripts"
+                                    mount_path = "/usr/sbin"
+                                }
+                            }
                             container {
                                 name = "gitea"
-                                image = "gitea/gitea:1.19.0"
+                                image = "gitea/gitea:1.19.0-rootless"
                                 port {
                                     name = "http"
                                     container_port = 3000
@@ -141,6 +202,12 @@ impl GiteaBuilder {
                                     claim_name = &this.volume_claim
                                 }
                             }
+                            volume {
+                                name = "init-scripts"
+                                secret {
+                                    secret_name = &init_config.metadata[0].name
+                                }
+                            }
                         }
                     }
                 }
@@ -150,3 +217,21 @@ impl GiteaBuilder {
         this
     }
 }
+
+const INIT_SCRIPT: &str = r#"#!/usr/bin/env bash
+echo "running as user: $UID"
+echo "===== Prepare /gitea ====="
+set -xeo pipefail
+mkdir -p "/gitea/custom/conf"
+chown -R 1000:1000 "/gitea"
+echo "DONE"
+"#;
+
+const MIGRATION_SCRIPT: &str = r#"#!/usr/bin/env bash
+echo "running as user: $UID"
+echo "===== Run Migrations ====="
+set -xeo pipefail
+environment-to-ini
+gitea migrate -c /gitea/custom/conf/app.ini
+echo "DONE"
+"#;

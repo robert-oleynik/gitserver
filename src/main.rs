@@ -63,13 +63,15 @@ pub fn init() -> Rc<Stack> {
         .namespace(namespace)
         .build();
 
-    Postgres::create(&stack, "db")
+    Postgres::create(&stack, "giteadb")
         .namespace(namespace)
         .volume_claim(pgdata.claim().clone().unwrap())
         .build();
     let gitea = Gitea::create(&stack, "gitea")
         .namespace(namespace)
+        .domain("192.168.49.2")
         .path("/git")
+        .postgres_host("postgres-giteadb.gitserver:5432")
         .volume_claim(giteadata.claim().clone().unwrap())
         .build();
     Ingress::create(&stack, "gitserver")
