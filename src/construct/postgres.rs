@@ -107,6 +107,10 @@ impl PostgresBuilder {
                                     exec {
                                         command = ["psql", "-w", "-U", user_str, "-d", db_name_str, "-c", "SELECT 1"]
                                     }
+                                    success_threshold = 1
+                                    failure_threshold = 10
+                                    period_seconds = 12
+                                    timeout_seconds = 5
                                 }
                                 readiness_probe {
                                     exec {

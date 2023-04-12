@@ -253,6 +253,10 @@ impl GiteaBuilder {
                                         path = "/api/healthz"
                                         port = "http"
                                     }
+                                    success_threshold = 1
+                                    failure_threshold = 10
+                                    period_seconds = 12
+                                    timeout_seconds = 5
                                 }
                             }
                             volume {

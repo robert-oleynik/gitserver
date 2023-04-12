@@ -75,6 +75,10 @@ impl MemcachedBuilder {
                                     tcp_socket {
                                         port = "11211"
                                     }
+                                    success_threshold = 1
+                                    failure_threshold = 10
+                                    period_seconds = 12
+                                    timeout_seconds = 5
                                 }
                                 resources {
                                     requests = crate::map! {
