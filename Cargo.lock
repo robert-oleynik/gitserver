@@ -280,12 +280,14 @@ dependencies = [
 name = "gitserver"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "derive_builder",
  "nom",
  "signal-hook",
  "tf-bindgen",
  "tf-kubernetes",
+ "toml",
 ]
 
 [[package]]

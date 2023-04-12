@@ -12,13 +12,15 @@ use tf_kubernetes::kubernetes::resource::{kubernetes_namespace, kubernetes_stora
 use tf_kubernetes::kubernetes::Kubernetes;
 
 mod cli;
+mod config;
 mod construct;
 mod helper;
 
+use config::Config;
 use construct::local_dir_volume::LocalDirVolume;
 use construct::postgres::Postgres;
 
-pub fn init() -> Rc<Stack> {
+pub fn init(config: Config) -> Rc<Stack> {
     let stack = Stack::new("gitserver");
 
     Kubernetes::create(&stack)
@@ -48,7 +50,7 @@ pub fn init() -> Rc<Stack> {
         .storage("10Gi")
         .storage_class(&local_storage_class.metadata[0].name)
         .mount_path("/mnt/gitea-pgdata")
-        .node("minikube")
+        .node(&config.server.node)
         .build();
     let pgdata = pgdata_volume.claim("pgdata").namespace(namespace).build();
 
@@ -56,7 +58,7 @@ pub fn init() -> Rc<Stack> {
         .storage("10Gi")
         .storage_class(&local_storage_class.metadata[0].name)
         .mount_path("/mnt/gitea-data")
-        .node("minikube")
+        .node(&config.server.node)
         .build();
     let giteadata = giteadata_volume
         .claim("giteadata")
@@ -72,15 +74,15 @@ pub fn init() -> Rc<Stack> {
         .build();
     let gitea = Gitea::create(&stack, "gitea")
         .namespace(namespace)
-        .domain("192.168.49.2")
+        .domain(&config.server.domain)
         .path("/")
         .db_host("postgres-giteadb.gitserver:5432")
         .db_name("gitea")
         .db_user("gitea")
         .db_password("gitea")
-        .root_user("root")
-        .root_passwd("gitea-root-password")
-        .root_email("root@localhost")
+        .root_user(&config.root.user)
+        .root_passwd(&config.root.passwd)
+        .root_email(&config.root.email)
         .volume_claim(giteadata.claim().clone().unwrap())
         .build();
     Ingress::create(&stack, "gitserver")
@@ -91,10 +93,12 @@ pub fn init() -> Rc<Stack> {
     stack
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let stack = init();
+    let config = Config::from_file("gitserver.toml")?;
+
+    let stack = init(config);
     let mut command = match cli.command() {
         Command::Init => Terraform::init(&stack)?,
         Command::Apply => Terraform::apply(&stack)?,
