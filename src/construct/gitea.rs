@@ -9,6 +9,13 @@ use tf_kubernetes::kubernetes::resource::{
 
 use super::ingress::IngressServiceConfig;
 
+const INIT_SCRIPT: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/script/gitea/init.sh"));
+const MIGRATION_SCRIPT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/script/gitea/migrate.sh"
+));
+
 #[derive(Construct)]
 #[construct(builder)]
 #[allow(dead_code)]
@@ -31,6 +38,12 @@ pub struct Gitea {
     db_user: Value<String>,
     #[construct(setter(into_value))]
     db_password: Value<String>,
+    #[construct(setter(into_value))]
+    root_user: Value<String>,
+    #[construct(setter(into_value))]
+    root_passwd: Value<String>,
+    #[construct(setter(into_value))]
+    root_email: Value<String>,
     #[construct(setter(into_value))]
     volume_claim: Value<String>,
 }
@@ -60,6 +73,12 @@ impl GiteaBuilder {
                 .db_password
                 .clone()
                 .expect("missing field 'db_password'"),
+            root_user: self.root_user.clone().expect("missing field 'root_user'"),
+            root_passwd: self
+                .root_passwd
+                .clone()
+                .expect("missing field 'root_passwd'"),
+            root_email: self.root_email.clone().expect("missing field 'root_email'"),
             volume_claim: self
                 .volume_claim
                 .clone()
@@ -87,6 +106,20 @@ impl GiteaBuilder {
             }
         };
 
+        let init_root_config = resource! {
+            &this, resource "kubernetes_secret" "gitea-init-root-config" {
+                metadata {
+                    namespace = &this.namespace
+                    name = name
+                }
+                data = crate::map! {
+                    "INSTALL_LOCK" = "true",
+                    "ROOT_USER" = &this.root_user,
+                    "ROOT_PASSWD" = &this.root_passwd,
+                    "ROOT_EMAIL" = &this.root_email
+                }
+            }
+        };
         let config = resource! {
             &this, resource "kubernetes_config_map" "gitea-config" {
                 metadata {
@@ -98,12 +131,13 @@ impl GiteaBuilder {
                     "USER_UID" = "1000",
                     "GITEA_WORK_DIR" = "/gitea",
                     "GITEA_CUSTOM" = "/gitea/custom",
+                    "GITEA_APP_INI" = "/gitea/custom/conf/app.ini",
                     "GITEA__database__DB_TYPE" = "postgres",
                     "GITEA__database__HOST" = &this.db_host,
                     "GITEA__database__NAME" = &this.db_name,
                     "GITEA__database__USER" = &this.db_user,
                     "GITEA__database__PASSWD" = &this.db_password,
-                    "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s:%(HTTP_PORT)s{}", this.path),
+                    "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s{}", this.path),
                     "GITEA__server__DOMAIN" = &this.domain
                 }
             }
@@ -173,6 +207,11 @@ impl GiteaBuilder {
                                         name = &config.metadata[0].name
                                     }
                                 }
+                                env_from {
+                                    secret_ref {
+                                        name = &init_root_config.metadata[0].name
+                                    }
+                                }
                                 volume_mount {
                                     name = "init-scripts"
                                     mount_path = "/usr/sbin"
@@ -228,25 +267,6 @@ impl GiteaBuilder {
                 }
             }
         };
-
         this
     }
 }
-
-const INIT_SCRIPT: &str = r#"#!/usr/bin/env bash
-echo "running as user: $UID"
-echo "===== Prepare /gitea ====="
-set -xeo pipefail
-mkdir -p "/gitea/custom/conf"
-chown -R 1000:1000 "/gitea"
-echo "DONE"
-"#;
-
-const MIGRATION_SCRIPT: &str = r#"#!/usr/bin/env bash
-echo "running as user: $UID"
-echo "===== Run Migrations ====="
-set -xeo pipefail
-environment-to-ini
-gitea migrate -c /gitea/custom/conf/app.ini
-echo "DONE"
-"#;
