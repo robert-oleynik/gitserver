@@ -31,6 +31,8 @@ pub struct Gitea {
     #[construct(setter(into_value))]
     domain: Value<String>,
     #[construct(setter(into_value))]
+    cache_host: Value<String>,
+    #[construct(setter(into_value))]
     db_host: Value<String>,
     #[construct(setter(into_value))]
     db_name: Value<String>,
@@ -66,6 +68,7 @@ impl GiteaBuilder {
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
             path: self.path.clone().unwrap_or("/".into()),
             domain: self.domain.clone().unwrap_or("localhost".into_value()),
+            cache_host: self.cache_host.clone().unwrap_or("localhost".into_value()),
             db_host: self.db_host.clone().unwrap_or("localhost".into_value()),
             db_name: self.db_name.clone().expect("missing field 'db_name'"),
             db_user: self.db_user.clone().expect("missing field 'db_user'"),
@@ -138,7 +141,9 @@ impl GiteaBuilder {
                     "GITEA__database__USER" = &this.db_user,
                     "GITEA__database__PASSWD" = &this.db_password,
                     "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s{}", this.path),
-                    "GITEA__server__DOMAIN" = &this.domain
+                    "GITEA__server__DOMAIN" = &this.domain,
+                    "GITEA__cache__ADAPTER" = "memcache",
+                    "GITEA__cache__HOST" = &this.cache_host
                 }
             }
         };

@@ -7,6 +7,7 @@ use clap::Parser;
 use cli::{Cli, Command};
 use construct::gitea::Gitea;
 use construct::ingress::Ingress;
+use construct::memcached::Memcached;
 use tf_bindgen::{cli::Terraform, Stack};
 use tf_kubernetes::kubernetes::resource::{kubernetes_namespace, kubernetes_storage_class};
 use tf_kubernetes::kubernetes::Kubernetes;
@@ -65,6 +66,10 @@ pub fn init(config: Config) -> Rc<Stack> {
         .namespace(namespace)
         .build();
 
+    Memcached::create(&stack, "giteacache")
+        .namespace(namespace)
+        .memory_limit("256Mi")
+        .build();
     Postgres::create(&stack, "giteadb")
         .namespace(namespace)
         .volume_claim(pgdata.claim().clone().unwrap())
@@ -76,6 +81,7 @@ pub fn init(config: Config) -> Rc<Stack> {
         .namespace(namespace)
         .domain(&config.server.domain)
         .path("/")
+        .cache_host("giteacache.gitserver:11211")
         .db_host("postgres-giteadb.gitserver:5432")
         .db_name("gitea")
         .db_user("gitea")
