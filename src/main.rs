@@ -7,6 +7,7 @@ use clap::Parser;
 use cli::{Cli, Command};
 use construct::gitea::Gitea;
 use construct::ingress::Ingress;
+use construct::jenkins::Jenkins;
 use construct::memcached::Memcached;
 use tf_bindgen::{cli::Terraform, Stack};
 use tf_kubernetes::kubernetes::resource::{kubernetes_namespace, kubernetes_storage_class};
@@ -66,6 +67,17 @@ pub fn init(config: Config) -> Rc<Stack> {
         .namespace(namespace)
         .build();
 
+    let jenkinsdata_volume = LocalDirVolume::create(&stack, "gitserver-jenkinsdata")
+        .storage("10Gi")
+        .storage_class(&local_storage_class.metadata[0].name)
+        .mount_path("/mnt/jenkins-data")
+        .node(&config.server.node)
+        .build();
+    let jenkinsdata = jenkinsdata_volume
+        .claim("jenkinsdata")
+        .namespace(namespace)
+        .build();
+
     Memcached::create(&stack, "giteacache")
         .namespace(namespace)
         .memory_limit("256Mi")
@@ -80,7 +92,7 @@ pub fn init(config: Config) -> Rc<Stack> {
     let gitea = Gitea::create(&stack, "gitea")
         .namespace(namespace)
         .domain(&config.server.domain)
-        .path("/")
+        .path("/git")
         .cache_host("giteacache.gitserver:11211")
         .db_host("postgres-giteadb.gitserver:5432")
         .db_name("gitea")
@@ -91,9 +103,16 @@ pub fn init(config: Config) -> Rc<Stack> {
         .root_email(&config.root.email)
         .volume_claim(giteadata.claim().clone().unwrap())
         .build();
+
+    let jenkins = Jenkins::create(&stack, "jenkins")
+        .namespace(namespace)
+        .volume_claim(jenkinsdata.claim().clone().unwrap())
+        .path("/ci")
+        .build();
+
     Ingress::create(&stack, "gitserver")
         .namespace(namespace)
-        .services(vec![gitea.ingress()])
+        .services(vec![gitea.ingress(), jenkins.ingress()])
         .build();
 
     stack

@@ -53,6 +53,7 @@ pub struct Gitea {
 impl Gitea {
     pub fn ingress(&self) -> IngressServiceConfig {
         IngressServiceConfig {
+            rewrite: true,
             path: self.path.clone(),
             service_name: format!("{}-service", self.name),
             service_port: 3000,

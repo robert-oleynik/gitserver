@@ -6,6 +6,7 @@ use tf_kubernetes::kubernetes::resource::kubernetes_ingress_v1::{self, *};
 
 #[derive(Clone)]
 pub struct IngressServiceConfig {
+    pub rewrite: bool,
     pub path: String,
     pub service_name: String,
     pub service_port: i64,
@@ -49,7 +50,10 @@ impl IngressBuilder {
                 let backend = KubernetesIngressV1SpecRuleHttpPathBackend::builder()
                     .service(service)
                     .build();
-                let path = format!("{}(/|$)(.*)", config.path);
+                let path = match config.rewrite {
+                    true => format!("{}/(.*)", config.path),
+                    false => format!("/({}/.*)", &config.path[1..]),
+                };
                 KubernetesIngressV1SpecRuleHttpPath::builder()
                     .path_type("Prefix")
                     .path(&path)
@@ -62,7 +66,7 @@ impl IngressBuilder {
                 metadata {
                     annotations = crate::map! {
                         "nginx.ingress.kubernetes.io/use-regex" = "true",
-                        "nginx.ingress.kubernetes.io/rewrite-target" = "/$2"
+                        "nginx.ingress.kubernetes.io/rewrite-target" = "/$1"
                     }
                     namespace = &this.namespace
                     name = format!("{name}-ingress")
