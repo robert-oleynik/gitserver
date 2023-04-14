@@ -4,6 +4,7 @@ echo "running as user: $UID"
 echo "===== Run Migrations ====="
 set -xeo pipefail
 environment-to-ini
+cat "$GITEA_APP_INI"
 gitea migrate
 
 # Configure admin user

@@ -49,9 +49,10 @@ impl IngressBuilder {
                 let backend = KubernetesIngressV1SpecRuleHttpPathBackend::builder()
                     .service(service)
                     .build();
+                let path = format!("{}(/|$)(.*)", config.path);
                 KubernetesIngressV1SpecRuleHttpPath::builder()
                     .path_type("Prefix")
-                    .path(&config.path)
+                    .path(&path)
                     .backend(backend)
                     .build()
             })
@@ -59,6 +60,10 @@ impl IngressBuilder {
         resource! {
             &this, resource "kubernetes_ingress_v1" "ingress" {
                 metadata {
+                    annotations = crate::map! {
+                        "nginx.ingress.kubernetes.io/use-regex" = "true",
+                        "nginx.ingress.kubernetes.io/rewrite-target" = "/$2"
+                    }
                     namespace = &this.namespace
                     name = format!("{name}-ingress")
                 }

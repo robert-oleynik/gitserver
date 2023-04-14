@@ -140,8 +140,7 @@ impl GiteaBuilder {
                     "GITEA__database__NAME" = &this.db_name,
                     "GITEA__database__USER" = &this.db_user,
                     "GITEA__database__PASSWD" = &this.db_password,
-                    "GITEA__server__ROOT_URL" = format!("https://%(DOMAIN)s{}", this.path),
-                    "GITEA__server__DOMAIN" = &this.domain,
+                    "GITEA__server__ROOT_URL" = format!("https://{}{}/", this.domain.get(), this.path),
                     "GITEA__cache__ADAPTER" = "memcache",
                     "GITEA__cache__HOST" = &this.cache_host
                 }
