@@ -67,17 +67,6 @@ pub fn init(config: Config) -> Rc<Stack> {
         .namespace(namespace)
         .build();
 
-    let jenkinsdata_volume = LocalDirVolume::create(&stack, "gitserver-jenkinsdata")
-        .storage("10Gi")
-        .storage_class(&local_storage_class.metadata[0].name)
-        .mount_path("/mnt/jenkins-data")
-        .node(&config.server.node)
-        .build();
-    let jenkinsdata = jenkinsdata_volume
-        .claim("jenkinsdata")
-        .namespace(namespace)
-        .build();
-
     Memcached::create(&stack, "giteacache")
         .namespace(namespace)
         .memory_limit("256Mi")
@@ -106,7 +95,7 @@ pub fn init(config: Config) -> Rc<Stack> {
 
     let jenkins = Jenkins::create(&stack, "jenkins")
         .namespace(namespace)
-        .volume_claim(jenkinsdata.claim().clone().unwrap())
+        .domain(&config.server.domain)
         .path("/ci")
         .build();
 

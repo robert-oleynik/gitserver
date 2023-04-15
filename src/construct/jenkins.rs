@@ -5,7 +5,7 @@ use tf_bindgen::value::Value;
 use tf_bindgen::Scope;
 use tf_kubernetes::kubernetes::resource::{
     kubernetes_cluster_role, kubernetes_cluster_role_binding, kubernetes_config_map,
-    kubernetes_deployment, kubernetes_service, kubernetes_service_account,
+    kubernetes_deployment, kubernetes_secret, kubernetes_service, kubernetes_service_account,
 };
 
 use super::ingress::IngressServiceConfig;
@@ -19,10 +19,10 @@ pub struct Jenkins {
     scope: Rc<dyn Scope>,
     #[construct(setter(into_value))]
     namespace: Value<String>,
-    #[construct(setter(into_value))]
-    volume_claim: Value<String>,
     #[construct(setter(into))]
     path: String,
+    #[construct(setter(into))]
+    domain: String,
 }
 
 impl Jenkins {
@@ -42,14 +42,13 @@ impl JenkinsBuilder {
             name: self.name.clone(),
             scope: self.scope.clone(),
             path: self.path.clone().expect("missing field 'path'"),
+            domain: self.domain.clone().expect("missing field 'domain'"),
             namespace: self.namespace.clone().expect("missing field 'namespace'"),
-            volume_claim: self
-                .volume_claim
-                .clone()
-                .expect("missing field 'volume_claim'"),
         });
 
         let name = &this.name;
+        let path = &this.path;
+        let domain = &this.domain;
         let labels = crate::map! {
             "app" = name
         };
@@ -94,6 +93,23 @@ impl JenkinsBuilder {
             }
         };
 
+        let casc = resource! {
+            &this, resource "kubernetes_secret" "jenkins-casc" {
+                metadata {
+                    namespace = &this.namespace
+                    name = format!("{name}-casc")
+                }
+                data = crate::map! {
+                    "casc.yaml" = format!(r#"
+unclassified:
+  location:
+    url: https://{domain}{path}
+"#),
+                    "install-plugins.sh" = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/script/jenkins/install-plugins.sh"))
+                }
+            }
+        };
+
         let config = resource! {
             &this, resource "kubernetes_config_map" "jenkins" {
                 metadata {
@@ -101,7 +117,9 @@ impl JenkinsBuilder {
                     name = name
                 }
                 data = crate::map! {
-                    "JENKINS_OPTS" = format!("--prefix={}", this.path)
+                    "JENKINS_OPTS" = format!("--prefix={}", this.path),
+                    "JAVA_OPTS" = format!("-Djenkins.install.runSetupWizard=false -Dcasc.reload.token={name}"),
+                    "CASC_JENKINS_CONFIG" = "/config"
                 }
             }
         };
@@ -125,11 +143,31 @@ impl JenkinsBuilder {
                             security_context {
                                 fs_group = "1000"
                                 run_as_user = "1000"
+                                run_as_group = "100"
+                                run_as_non_root = true
                             }
                             service_account_name = &service_account.metadata[0].name
+                            init_container {
+                                name = "install-plugins"
+                                image = "jenkins/jenkins:2.400"
+                                command = ["bash", "/config/install-plugins.sh"]
+                                volume_mount {
+                                    name = "jenkins-data"
+                                    mount_path = "/var/jenkins_home"
+                                }
+                                volume_mount {
+                                    name = "jenkins-casc"
+                                    mount_path = "/config"
+                                }
+                                env_from {
+                                    config_map_ref {
+                                        name = &config.metadata[0].name
+                                    }
+                                }
+                            }
                             container {
                                 name = "jenkins"
-                                image = "jenkins/jenkins:2.400-alpine"
+                                image = "jenkins/jenkins:2.400"
                                 port {
                                     name = "http"
                                     container_port = 8080
@@ -158,8 +196,11 @@ impl JenkinsBuilder {
                                 }
                                 volume_mount {
                                     name = "jenkins-data"
-                                    mount_path = "/var"
-                                    sub_path = "jenkins_home"
+                                    mount_path = "/var/jenkins_home"
+                                }
+                                volume_mount {
+                                    name = "jenkins-casc"
+                                    mount_path = "/config"
                                 }
                                 env_from {
                                     config_map_ref {
@@ -169,8 +210,12 @@ impl JenkinsBuilder {
                             }
                             volume {
                                 name = "jenkins-data"
-                                persistent_volume_claim {
-                                    claim_name = &this.volume_claim
+                                empty_dir{}
+                            }
+                            volume {
+                                name = "jenkins-casc"
+                                secret {
+                                    secret_name = &casc.metadata[0].name
                                 }
                             }
                         }
