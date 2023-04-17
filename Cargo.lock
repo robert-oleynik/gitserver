@@ -547,6 +547,8 @@ dependencies = [
 [[package]]
 name = "tf-bindgen"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd15bc082216051cdea1949d5c077d98e4da0252d5b5b252353fdb95e6cfafeb"
 dependencies = [
  "anyhow",
  "derive_builder",
@@ -555,24 +557,28 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "tf-cli",
- "tf-codegen",
- "tf-core",
- "tf-schema",
+ "tf-bindgen-cli",
+ "tf-bindgen-codegen",
+ "tf-bindgen-core",
+ "tf-bindgen-schema",
  "toml",
 ]
 
 [[package]]
-name = "tf-cli"
+name = "tf-bindgen-cli"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28bee36e1995f035ab029c4a25594643557e115632f661f8d581d8f9cbe14fdd"
 dependencies = [
  "serde_json",
- "tf-core",
+ "tf-bindgen-core",
 ]
 
 [[package]]
-name = "tf-codegen"
+name = "tf-bindgen-codegen"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3395f7f44cdca2352521d08066f83455f4da9dc30b5e7b84f2a9aec20e9483cc"
 dependencies = [
  "darling",
  "heck",
@@ -581,27 +587,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "tf-core"
+name = "tf-bindgen-core"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5649743bbcd6c04905e8f03473601ad746ca31c01310cfe01bd501b10f71d86"
 dependencies = [
  "sha1",
- "tf-schema",
+ "tf-bindgen-schema",
+]
+
+[[package]]
+name = "tf-bindgen-schema"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59fc4ec50e754c06f8fea7f55aa4574e17378b04c527cfde2a8a6dc748665893"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "tf-kubernetes"
-version = "0.1.0"
-source = "git+https://github.com/robert-oleynik/tf-kubernetes.git#f45ebbc22182973f83024a8765bc627e59fada6d"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "710e0cc967d1ba37f992aed72ec6d2b80b014d5bafb0350488134cc8adfbd529"
 dependencies = [
  "tf-bindgen",
-]
-
-[[package]]
-name = "tf-schema"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
